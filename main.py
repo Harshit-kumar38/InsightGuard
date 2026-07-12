@@ -17,9 +17,10 @@ from sqlalchemy import func
 from datetime import datetime
 from typing import List
 
-from database import get_db, engine, Base
+from database import get_db, engine, Base, SessionLocal
 import models
 import schemas
+import realtime_scoring
 
 # Creates tables if they don't exist yet (safe to call every startup)
 Base.metadata.create_all(bind=engine)
@@ -33,6 +34,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def load_baseline_cache():
+    """
+    Builds the in-memory user-behavior baseline cache once when the server
+    starts, so /api/ingest can score new events instantly without needing
+    to re-run the full ML script.
+    """
+    db = SessionLocal()
+    try:
+        realtime_scoring.build_baseline_cache(db)
+    finally:
+        db.close()
 
 
 # ------------------------------------------------------------------
@@ -142,21 +157,23 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 @app.post("/api/ingest")
 def ingest_event(event: schemas.IngestEvent, db: Session = Depends(get_db)):
     """
-    Push a new access event live. Use this during your demo to simulate
-    a suspicious action happening in real time, then immediately call
-    your detection script (or re-run it) and watch the alert appear.
+    Push a new access event live, score it INSTANTLY using the cached
+    behavioral baselines (see realtime_scoring.py), and — if risky enough —
+    create a real alert immediately. This is what powers the
+    "Simulate Suspicious Event" button for a genuinely live demo.
     """
     user = db.query(models.User).filter(models.User.user_id == event.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     max_log_id = db.query(func.max(models.AccessLog.log_id)).scalar() or 0
+    event_timestamp = event.timestamp or datetime.now()
 
     new_log = models.AccessLog(
         log_id=max_log_id + 1,
         user_id=event.user_id,
         department=user.department,
-        timestamp=event.timestamp or datetime.now(),
+        timestamp=event_timestamp,
         resource_accessed=event.resource_accessed,
         action=event.action,
         data_volume_mb=event.data_volume_mb,
@@ -166,7 +183,39 @@ def ingest_event(event: schemas.IngestEvent, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_log)
 
-    return {"message": "Event ingested", "log_id": new_log.log_id}
+    # ---- Real-time scoring ----
+    risk_score, reason, method = realtime_scoring.score_event(
+        user_id=event.user_id,
+        department=user.department,
+        resource_accessed=event.resource_accessed,
+        data_volume_mb=event.data_volume_mb,
+        resource_sensitivity=event.resource_sensitivity,
+        event_hour=event_timestamp.hour,
+        typical_login_hour=user.typical_login_hour,
+    )
+
+    alert_created = False
+    ALERT_THRESHOLD = 60
+    if risk_score is not None and risk_score >= ALERT_THRESHOLD:
+        new_alert = models.Alert(
+            log_id=new_log.log_id,
+            user_id=event.user_id,
+            timestamp=event_timestamp,
+            risk_score=risk_score,
+            reason=reason,
+            detection_method=method,
+        )
+        db.add(new_alert)
+        db.commit()
+        alert_created = True
+
+    return {
+        "message": "Event ingested and scored",
+        "log_id": new_log.log_id,
+        "risk_score": risk_score,
+        "reason": reason,
+        "alert_created": alert_created,
+    }
 
 
 @app.get("/")
