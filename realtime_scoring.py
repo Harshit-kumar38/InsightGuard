@@ -119,28 +119,41 @@ def score_event(user_id: str, department: str, resource_accessed: str,
     # Odd-hour severity: scales smoothly from 0 (on time) to 100 (12h off)
     hour_severity = float(np.clip((hour_deviation / 8) * 100, 0, 100))
 
-    # Volume severity: scales smoothly, 0MB=0, ~500MB+=100
-    volume_severity = float(np.clip((data_volume_mb / 500) * 100, 0, 100))
+    # Volume severity: scales smoothly, 0MB=0, ~350MB+=100 (realistic bulk-download range)
+    volume_severity = float(np.clip((data_volume_mb / 350) * 100, 0, 100))
 
     # Cross-department is more binary in nature, but weight it moderately
     allowed_depts = _baseline_cache["resource_allowed_depts"].get(resource_accessed, {department})
     cross_department = department not in allowed_depts
-    dept_severity = 55 if cross_department else 0
+    dept_severity = 78 if cross_department else 0
 
     # Sensitivity of the resource itself amplifies whatever else is going on
-    sensitivity_multiplier = 0.7 + (resource_sensitivity / 10) * 0.3  # ranges ~0.7-1.0
+    sensitivity_multiplier = 0.85 + (resource_sensitivity / 10) * 0.3  # ranges ~0.85-1.15
 
     # ---- 2. Statistical deviation from this user's own baseline ----
     z_hour = (hour_deviation - stats["mean_hour_dev"]) / stats["std_hour_dev"]
     z_volume = (data_volume_mb - stats["mean_volume"]) / stats["std_volume"]
     z_severity = float(np.clip((abs(z_hour) + abs(z_volume)) / 2 / 4 * 100, 0, 100))
 
-    # ---- Combine event-level signals (weighted average, not max()) ----
+    # ---- Combine event-level signals ----
+    # Important: the demo UI triggers ONE strong signal at a time (e.g. just
+    # "bulk download" OR just "odd hour"), so we can't average all signals
+    # equally — that would dilute a single strong signal below the alert
+    # threshold. Instead: the STRONGEST signal drives most of the score,
+    # with the other signals contributing a smaller supporting amount.
+    signal_severities = {
+        "hour": hour_severity,
+        "volume": volume_severity,
+        "dept": dept_severity,
+    }
+    primary_key = max(signal_severities, key=signal_severities.get)
+    primary_severity = signal_severities[primary_key]
+    support_severity = (sum(signal_severities.values()) - primary_severity) / 2
+
     base_score = (
-        0.30 * hour_severity +
-        0.30 * volume_severity +
-        0.25 * dept_severity +
-        0.15 * z_severity
+        0.70 * primary_severity +
+        0.20 * support_severity +
+        0.10 * z_severity
     ) * sensitivity_multiplier
 
     # ---- 3. Escalation for repeat offenders ----
