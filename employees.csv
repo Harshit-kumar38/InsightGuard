@@ -1,0 +1,51 @@
+user_id,name,department,role,join_date,typical_login_hour,typical_files_per_day
+EMP001,Kelli Deleon,IT_Admin,System Admin,2026-03-18,9.8,7
+EMP002,Christopher Warner,Finance,Finance Manager,2025-03-03,10.0,12
+EMP003,Tracy Hahn,Engineering,Software Engineer,2025-05-29,9.3,7
+EMP004,Carlos Juarez,HR,HR Executive,2024-03-20,10.6,10
+EMP005,Kyle Williams,IT_Admin,System Admin,2024-10-01,9.2,9
+EMP006,John Montoya,IT_Admin,Security Admin,2023-10-03,9.2,6
+EMP007,Steven Carrillo,Sales,Sales Executive,2026-04-22,9.7,2
+EMP008,Lisa Washington,Sales,Account Manager,2025-10-18,8.3,6
+EMP009,Raymond Briggs,Finance,Analyst,2026-01-03,8.8,8
+EMP010,Brian Monroe,Finance,Analyst,2025-10-24,8.9,3
+EMP011,Erica Stewart,HR,Recruiter,2025-04-30,10.5,7
+EMP012,George Roberts,Sales,Sales Executive,2025-03-13,9.5,3
+EMP013,Nicholas Williams,Sales,Sales Executive,2024-09-27,9.1,8
+EMP014,Mrs. April Smith MD,IT_Admin,Security Admin,2025-05-12,8.7,9
+EMP015,Joseph Dominguez,IT_Admin,Security Admin,2025-04-26,9.1,7
+EMP016,Linda Campbell,Marketing,Marketing Executive,2026-02-11,9.1,13
+EMP017,Phyllis West,Marketing,Marketing Manager,2024-05-02,9.5,4
+EMP018,Samantha Knapp,Engineering,Software Engineer,2026-03-04,10.1,4
+EMP019,Rebecca Taylor,HR,Recruiter,2024-02-08,9.6,2
+EMP020,Richard Greene,Marketing,Content Strategist,2023-11-28,8.6,8
+EMP021,Steven Hawkins,Engineering,Software Engineer,2026-04-19,10.0,8
+EMP022,Erica Harper,HR,HR Manager,2024-10-28,9.4,7
+EMP023,Ryan Mercer,Finance,Analyst,2025-04-10,8.5,5
+EMP024,Paul Wall,Marketing,Marketing Executive,2025-07-04,9.2,11
+EMP025,Diana White,Engineering,Senior Engineer,2025-08-08,9.7,2
+EMP026,Dean Nielsen,Sales,Account Manager,2024-04-21,9.7,6
+EMP027,Jessica Aguilar,Finance,Finance Manager,2025-02-22,9.0,9
+EMP028,Michael Wells,Marketing,Marketing Manager,2023-12-26,10.2,10
+EMP029,Adam Green,Finance,Accountant,2026-02-03,8.9,7
+EMP030,Kenneth Riley,Finance,Finance Manager,2025-05-01,9.7,10
+EMP031,Richard Mercer,Engineering,Tech Lead,2023-10-01,9.2,7
+EMP032,Mr. Chase Long,Sales,Account Manager,2026-05-05,8.7,4
+EMP033,Holly Brown,Sales,Sales Executive,2024-07-31,10.1,12
+EMP034,Jennifer Gutierrez,IT_Admin,System Admin,2024-12-24,9.4,11
+EMP035,Katie Walker,Finance,Finance Manager,2023-12-31,9.8,6
+EMP036,Robert Jackson,HR,HR Manager,2023-11-24,9.8,12
+EMP037,Rachel Jones,Finance,Analyst,2025-09-14,9.5,12
+EMP038,Alicia Brooks,Finance,Accountant,2024-09-04,7.7,10
+EMP039,Tammy Brown,Engineering,Senior Engineer,2024-08-06,9.6,7
+EMP040,Jennifer Suarez,IT_Admin,IT Support,2023-11-25,9.6,2
+EMP041,Felicia Peterson,HR,HR Manager,2024-04-01,9.3,9
+EMP042,Cindy Carey,Engineering,Software Engineer,2024-05-05,10.5,6
+EMP043,James Patrick,IT_Admin,IT Support,2024-02-13,8.9,6
+EMP044,Christian Cooper,IT_Admin,Security Admin,2024-05-06,10.1,8
+EMP045,John Howard,IT_Admin,System Admin,2024-01-03,9.1,9
+EMP046,Ashley Brooks,Sales,Sales Manager,2024-07-02,9.6,10
+EMP047,George Brown,HR,Recruiter,2025-11-16,9.0,7
+EMP048,Shelly Mejia,IT_Admin,System Admin,2024-11-09,9.2,3
+EMP049,Darlene Jackson,HR,HR Manager,2024-09-10,9.7,8
+EMP050,Karen Garcia,Marketing,Content Strategist,2026-06-03,9.5,7
