@@ -91,40 +91,88 @@ def build_baseline_cache(db: Session):
 
 def score_event(user_id: str, department: str, resource_accessed: str,
                  data_volume_mb: float, resource_sensitivity: int,
-                 event_hour: int, typical_login_hour: float):
+                 event_hour: int, typical_login_hour: float,
+                 recent_alert_count: int = 0):
     """
-    Scores a single new event in real time. Returns (risk_score, reason, method)
-    or (None, None, None) if the user has no baseline yet (brand new user).
+    Scores a single new event in real time, combining THREE things:
+
+    1. Event severity — how unusual is THIS specific event, on a smooth
+       scale (not a hard on/off switch). A slightly odd hour scores lower
+       than an extremely odd hour; a 160MB download scores lower than an
+       800MB download.
+    2. Statistical deviation (z-score) — how far this event is from the
+       user's own personal baseline behavior.
+    3. Escalation — if this same person has been flagged recently before,
+       each repeat offense pushes their score higher. A first-time minor
+       slip looks very different from a fifth flagged event this week.
+
+    `recent_alert_count` = number of alerts already on record for this user
+    in the recent window (passed in by the caller, e.g. last 30 days).
     """
     stats = _baseline_cache["user_stats"].get(user_id)
     if stats is None:
-        # No history for this user yet — can't compute a personal baseline.
-        # Fall back to a generic moderate score based on rules only.
         stats = {"mean_hour_dev": 2.0, "std_hour_dev": 1.5, "mean_volume": 10.0, "std_volume": 10.0}
 
     hour_deviation = abs(event_hour - typical_login_hour)
-    z_hour = (hour_deviation - stats["mean_hour_dev"]) / stats["std_hour_dev"]
-    z_volume = (data_volume_mb - stats["mean_volume"]) / stats["std_volume"]
-    z_combined = (abs(z_hour) + abs(z_volume)) / 2
 
-    risk_score = float(np.clip(z_combined / 4 * 100, 0, 100))
+    # ---- 1. Smooth per-signal severity scores (0-100 each, not hard floors) ----
+    # Odd-hour severity: scales smoothly from 0 (on time) to 100 (12h off)
+    hour_severity = float(np.clip((hour_deviation / 8) * 100, 0, 100))
 
+    # Volume severity: scales smoothly, 0MB=0, ~500MB+=100
+    volume_severity = float(np.clip((data_volume_mb / 500) * 100, 0, 100))
+
+    # Cross-department is more binary in nature, but weight it moderately
     allowed_depts = _baseline_cache["resource_allowed_depts"].get(resource_accessed, {department})
     cross_department = department not in allowed_depts
+    dept_severity = 55 if cross_department else 0
 
+    # Sensitivity of the resource itself amplifies whatever else is going on
+    sensitivity_multiplier = 0.7 + (resource_sensitivity / 10) * 0.3  # ranges ~0.7-1.0
+
+    # ---- 2. Statistical deviation from this user's own baseline ----
+    z_hour = (hour_deviation - stats["mean_hour_dev"]) / stats["std_hour_dev"]
+    z_volume = (data_volume_mb - stats["mean_volume"]) / stats["std_volume"]
+    z_severity = float(np.clip((abs(z_hour) + abs(z_volume)) / 2 / 4 * 100, 0, 100))
+
+    # ---- Combine event-level signals (weighted average, not max()) ----
+    base_score = (
+        0.30 * hour_severity +
+        0.30 * volume_severity +
+        0.25 * dept_severity +
+        0.15 * z_severity
+    ) * sensitivity_multiplier
+
+    # ---- 3. Escalation for repeat offenders ----
+    # Each prior recent alert adds a bonus — a 4th flagged event this month
+    # looks meaningfully riskier than someone's very first slip.
+    escalation_bonus = min(recent_alert_count * 8, 30)
+
+    risk_score = float(np.clip(base_score + escalation_bonus, 0, 100))
+
+    # ---- Build human-readable, threshold-based reasons ----
     reasons = []
-    if hour_deviation > 4:
+    if hour_deviation > 5:
         reasons.append(f"Access at {event_hour}:00 — far outside normal working hours (typical login ~{typical_login_hour:.1f}h)")
-        risk_score = max(risk_score, 72)
-    if data_volume_mb > 150:
-        reasons.append(f"Downloaded {data_volume_mb:.1f} MB in a single session — unusually large volume")
-        risk_score = max(risk_score, 75)
+    elif hour_deviation > 2.5:
+        reasons.append(f"Access at {event_hour}:00 — somewhat outside normal working hours")
+    if data_volume_mb > 250:
+        reasons.append(f"Downloaded {data_volume_mb:.1f} MB in a single session — very large volume")
+    elif data_volume_mb > 80:
+        reasons.append(f"Downloaded {data_volume_mb:.1f} MB — larger than typical session volume")
     if cross_department:
         reasons.append(f"Accessed {resource_accessed} — not a resource normally used by {department} department")
-        risk_score = max(risk_score, 72)
+    if recent_alert_count > 0:
+        reasons.append(f"{recent_alert_count} prior flagged event(s) for this user recently — escalating pattern")
     if not reasons:
-        reasons.append("Statistical deviation from personal behavioral baseline")
+        reasons.append("Minor statistical deviation from personal behavioral baseline")
 
-    method = "z_score" if not (hour_deviation > 4 or data_volume_mb > 150 or cross_department) else "combined"
+    signal_count = sum([hour_deviation > 2.5, data_volume_mb > 80, cross_department])
+    if signal_count >= 2:
+        method = "combined"
+    elif cross_department or hour_deviation > 2.5 or data_volume_mb > 80:
+        method = "isolation_forest"
+    else:
+        method = "z_score"
 
     return round(risk_score, 1), " | ".join(reasons), method

@@ -183,6 +183,14 @@ def ingest_event(event: schemas.IngestEvent, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_log)
 
+    # ---- Check how many times this user has been flagged recently ----
+    # (used for escalation — repeat offenders score higher over time)
+    recent_alert_count = (
+        db.query(models.Alert)
+        .filter(models.Alert.user_id == event.user_id)
+        .count()
+    )
+
     # ---- Real-time scoring ----
     risk_score, reason, method = realtime_scoring.score_event(
         user_id=event.user_id,
@@ -192,6 +200,7 @@ def ingest_event(event: schemas.IngestEvent, db: Session = Depends(get_db)):
         resource_sensitivity=event.resource_sensitivity,
         event_hour=event_timestamp.hour,
         typical_login_hour=user.typical_login_hour,
+        recent_alert_count=recent_alert_count,
     )
 
     alert_created = False
