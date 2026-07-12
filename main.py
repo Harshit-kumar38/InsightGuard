@@ -183,11 +183,15 @@ def ingest_event(event: schemas.IngestEvent, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_log)
 
-    # ---- Check how many times this user has been flagged recently ----
-    # (used for escalation — repeat offenders score higher over time)
+    # ---- Check how many times this user has been flagged RECENTLY ----
+    # Time-windowed (last 48 hours) — NOT all-time — so escalation reflects
+    # a genuinely emerging pattern, not someone's entire historical record.
+    from datetime import timedelta
+    window_start = datetime.now() - timedelta(hours=48)
     recent_alert_count = (
         db.query(models.Alert)
         .filter(models.Alert.user_id == event.user_id)
+        .filter(models.Alert.timestamp >= window_start)
         .count()
     )
 
@@ -204,7 +208,7 @@ def ingest_event(event: schemas.IngestEvent, db: Session = Depends(get_db)):
     )
 
     alert_created = False
-    ALERT_THRESHOLD = 60
+    ALERT_THRESHOLD = 25
     if risk_score is not None and risk_score >= ALERT_THRESHOLD:
         new_alert = models.Alert(
             log_id=new_log.log_id,
