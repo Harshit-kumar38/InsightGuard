@@ -208,7 +208,7 @@ def ingest_event(event: schemas.IngestEvent, db: Session = Depends(get_db)):
     )
 
     alert_created = False
-    ALERT_THRESHOLD = 25
+    ALERT_THRESHOLD = 12
     if risk_score is not None and risk_score >= ALERT_THRESHOLD:
         new_alert = models.Alert(
             log_id=new_log.log_id,
